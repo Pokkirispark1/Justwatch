@@ -9,6 +9,7 @@ from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, 
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
+    CommandHandler,
     ContextTypes,
     ConversationHandler,
     Defaults,
@@ -41,10 +42,16 @@ def run_bot() -> None:
         .build()
     )
     user_filter = User(username=ALLOWED_USERNAMES, allow_empty=True)
+    application.add_handler(CommandHandler(["start", "help"], help_command, user_filter))
     application.add_handler(MessageHandler(user_filter & TEXT & ~COMMAND, search))
     application.add_handler(search_results_handler())
     logger.info("Starting bot")
     application.run_polling()
+
+
+async def help_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    response = "Send a message to the bot with things you want to search in JustWatch, that's it!"
+    await update.message.reply_text(response)
 
 
 def search_results_handler() -> ConversationHandler:
