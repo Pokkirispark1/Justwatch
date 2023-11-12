@@ -12,12 +12,14 @@ from telegram.ext import (
     ConversationHandler,
     Defaults,
     MessageHandler,
+    PicklePersistence,
 )
 from telegram.ext.filters import COMMAND, TEXT
 
 load_dotenv()
 TOKEN = getenv("TOKEN")
 API_URL = getenv("API_URL")
+PERSISTENCE_FILE = getenv("PERSISTENCE_FILE", "persistence")
 
 
 class State(Enum):
@@ -32,29 +34,32 @@ def run_bot() -> None:
         .token(TOKEN)
         .defaults(Defaults("HTML"))
         .arbitrary_callback_data(True)
+        .persistence(PicklePersistence(PERSISTENCE_FILE))
         .build()
     )
     application.add_handler(MessageHandler(TEXT & ~COMMAND, search))
-    application.add_handler(search_followup_handler())
+    application.add_handler(search_results_handler())
     application.run_polling()
 
 
-def search_followup_handler() -> ConversationHandler:
+def search_results_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(show_details)],
         states={
             State.SELECT_OFFER_TYPE: [
-                CallbackQueryHandler(search_results, lambda data: isinstance(data, list)),
+                CallbackQueryHandler(search_results_again, lambda data: isinstance(data, list)),
                 CallbackQueryHandler(show_offers),
             ],
             State.SHOW_OFFER: [
-                CallbackQueryHandler(search_results, lambda data: isinstance(data, list)),
+                CallbackQueryHandler(search_results_again, lambda data: isinstance(data, list)),
                 CallbackQueryHandler(show_details),
             ],
             State.SHOW_DETAILS: [CallbackQueryHandler(show_details)],
         },
         fallbacks=[],
         per_message=True,
+        persistent=True,
+        name="search_results_handler",
     )
 
 
@@ -64,7 +69,7 @@ async def search(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Select entry:", reply_markup=response_keyboard(response))
 
 
-async def search_results(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
+async def search_results_again(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
     query = update.callback_query
     await query.answer()
     await query.edit_message_text("Select entry:", reply_markup=response_keyboard(query.data))
@@ -103,7 +108,7 @@ async def show_offers(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
     ]
     buttons += [
         [InlineKeyboardButton("« Back", callback_data=(title, year, offers, full_data))],
-        [InlineKeyboardButton("« Back to search", callback_data=full_data)]
+        [InlineKeyboardButton("« Back to search", callback_data=full_data)],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(f"<b>{title}</b> ({year})", reply_markup=keyboard)
