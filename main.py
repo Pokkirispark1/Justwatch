@@ -15,12 +15,13 @@ from telegram.ext import (
     MessageHandler,
     PicklePersistence,
 )
-from telegram.ext.filters import COMMAND, TEXT
+from telegram.ext.filters import COMMAND, TEXT, User
 
 load_dotenv()
 TOKEN = getenv("TOKEN")
 API_URL = getenv("API_URL")
 PERSISTENCE_FILE = getenv("PERSISTENCE_FILE", "persistence")
+ALLOWED_USERNAMES = getenv("ALLOWED_USERNAMES", "").split()
 
 
 class State(Enum):
@@ -39,7 +40,8 @@ def run_bot() -> None:
         .persistence(PicklePersistence(PERSISTENCE_FILE))
         .build()
     )
-    application.add_handler(MessageHandler(TEXT & ~COMMAND, search))
+    user_filter = User(username=ALLOWED_USERNAMES, allow_empty=True)
+    application.add_handler(MessageHandler(user_filter & TEXT & ~COMMAND, search))
     application.add_handler(search_results_handler())
     logger.info("Starting bot")
     application.run_polling()
