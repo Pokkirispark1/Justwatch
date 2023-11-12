@@ -3,6 +3,7 @@ from os import getenv
 from typing import Any
 
 from dotenv import load_dotenv
+from loguru import logger
 from requests import get
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -29,6 +30,7 @@ class State(Enum):
 
 
 def run_bot() -> None:
+    logger.info("Creating bot")
     application = (
         ApplicationBuilder()
         .token(TOKEN)
@@ -39,6 +41,7 @@ def run_bot() -> None:
     )
     application.add_handler(MessageHandler(TEXT & ~COMMAND, search))
     application.add_handler(search_results_handler())
+    logger.info("Starting bot")
     application.run_polling()
 
 
@@ -65,7 +68,9 @@ def search_results_handler() -> ConversationHandler:
 
 async def search(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     name = update.message.text.strip()
+    logger.info(f"Looking for '{name}'")
     response = get(API_URL.replace("{search_field}", name)).json()
+    logger.info(f"Received response for '{name}'")
     await update.message.reply_text("Select entry:", reply_markup=response_keyboard(response))
 
 
