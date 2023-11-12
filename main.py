@@ -5,7 +5,7 @@ from typing import Any
 from dotenv import load_dotenv
 from loguru import logger
 from requests import get
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -47,17 +47,17 @@ def run_bot() -> None:
 
 def search_results_handler() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CallbackQueryHandler(show_details)],
+        entry_points=[CallbackQueryHandler(show_details_initial)],
         states={
             State.SELECT_OFFER_TYPE: [
-                CallbackQueryHandler(search_results_again, lambda data: isinstance(data, list)),
+                CallbackQueryHandler(search_results_again, "search_results"),
                 CallbackQueryHandler(show_offers),
             ],
             State.SHOW_OFFER: [
-                CallbackQueryHandler(search_results_again, lambda data: isinstance(data, list)),
-                CallbackQueryHandler(show_details),
+                CallbackQueryHandler(show_details_again, "details"),
+                CallbackQueryHandler(search_results_again, "search_results"),
             ],
-            State.SHOW_DETAILS: [CallbackQueryHandler(show_details)],
+            State.SHOW_DETAILS: [CallbackQueryHandler(show_details_initial)],
         },
         fallbacks=[],
         per_message=True,
@@ -66,54 +66,71 @@ def search_results_handler() -> ConversationHandler:
     )
 
 
-async def search(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     name = update.message.text.strip()
     logger.info(f"Looking for '{name}'")
     response = get(API_URL.replace("{search_field}", name)).json()
     logger.info(f"Received response for '{name}'")
+    context.user_data["search_results"] = response
     await update.message.reply_text("Select entry:", reply_markup=response_keyboard(response))
 
 
-async def search_results_again(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
+async def search_results_again(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("Select entry:", reply_markup=response_keyboard(query.data))
+    search_results = context.user_data["search_results"]
+    await query.edit_message_text("Select entry:", reply_markup=response_keyboard(search_results))
     return State.SHOW_DETAILS
 
 
 def response_keyboard(data: list[Any]) -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(f"{title} ({year})", callback_data=(title, year, offers, data))]
-        for title, year, offers in data
+        [InlineKeyboardButton(f"{title} ({year})", callback_data=index)]
+        for index, (title, year, offers) in enumerate(data)
     ]
     return InlineKeyboardMarkup(buttons)
 
 
-async def show_details(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
+async def show_details_initial(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
     query = update.callback_query
     await query.answer()
-    title, year, offers, full_data = query.data
+    index = data if isinstance(data := query.data, int) else 0
+    context.user_data["index"] = index
+    current_data = context.user_data["search_results"][index]
+    context.user_data["current_data"] = current_data
+    return await show_details(query, current_data)
+
+
+async def show_details_again(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
+    query = update.callback_query
+    await query.answer()
+    current_data = context.user_data["current_data"]
+    return await show_details(query, current_data)
+
+
+async def show_details(query: CallbackQuery, current_data: list[Any]) -> State:
+    title, year, offers = current_data
     buttons = [
-        [InlineKeyboardButton(offer_type, callback_data=(offer_type, *query.data))]
-        for offer_type in offers.keys()
+        [InlineKeyboardButton(offer_type, callback_data=offer_type)] for offer_type in offers.keys()
     ]
-    buttons += [[InlineKeyboardButton("« Back", callback_data=full_data)]]
+    buttons += [[InlineKeyboardButton("« Back", callback_data="search_results")]]
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(f"<b>{title}</b> ({year})", reply_markup=keyboard)
     return State.SELECT_OFFER_TYPE
 
 
-async def show_offers(update: Update, _: ContextTypes.DEFAULT_TYPE) -> State:
+async def show_offers(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
     query = update.callback_query
     await query.answer()
-    offer_type, title, year, offers, full_data = query.data
+    offer_type = query.data
+    title, year, offers = context.user_data["current_data"]
     buttons = [
         [InlineKeyboardButton(f"{name} ({value})", url=url)]
         for name, url, value in offers[offer_type]
     ]
     buttons += [
-        [InlineKeyboardButton("« Back", callback_data=(title, year, offers, full_data))],
-        [InlineKeyboardButton("« Back to search", callback_data=full_data)],
+        [InlineKeyboardButton("« Back", callback_data="details")],
+        [InlineKeyboardButton("« Back to search", callback_data="search_results")],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(f"<b>{title}</b> ({year})", reply_markup=keyboard)
