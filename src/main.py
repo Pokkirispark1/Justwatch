@@ -21,7 +21,7 @@ from telegram.ext.filters import COMMAND, TEXT, User
 load_dotenv()
 TOKEN = getenv("TOKEN")
 API_URL = getenv("API_URL")
-PERSISTENCE_FILE = getenv("PERSISTENCE_FILE", "persistence")
+PERSISTENCE_FILE = getenv("PERSISTENCE_FILE", "../persistence")
 ALLOWED_USERNAMES = getenv("ALLOWED_USERNAMES", "").split()
 
 
