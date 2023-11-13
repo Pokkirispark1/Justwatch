@@ -3,6 +3,7 @@ from re import sub
 from typing import NamedTuple
 
 from dotenv import load_dotenv
+from loguru import logger
 from selenium.webdriver import Firefox, FirefoxOptions, FirefoxService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebElement
@@ -25,13 +26,14 @@ class MediaEntry(NamedTuple):
     watch_options: dict[str, WatchOffer]
 
 
-class JustWatchApi:
+class JustWatch:
     COOKIES_POPUP_ID = "usercentrics-root"
     COOKIES_ACCEPT_CSS = "button[data-testid=uc-accept-all-button]"
     JUSTWATCH_URL = "https://www.justwatch.com"
     SEARCH_URL = JUSTWATCH_URL + "/{country}/search?q={name}"
 
     def __init__(self, country: str = "us"):
+        logger.info("Setting up Selenium...")
         self.country = country
         load_dotenv()
         firefox_bin = getenv("FIREFOX_BIN")
@@ -42,15 +44,20 @@ class JustWatchApi:
         service = FirefoxService(firefox_driver)
         self.driver = Firefox(options=options, service=service)
         self.driver.implicitly_wait(10)
+        logger.info("Opening JustWatch...")
         self.driver.get(self.JUSTWATCH_URL)
+        logger.info("Accepting cookies...")
         self._accept_cookies()
+        logger.info("JustWatch ready!")
 
     def __del__(self):
         self.driver.quit()
 
     def search(self, name: str) -> list[MediaEntry]:
+        logger.info(f"Looking up {name} (country: {self.country})...")
         url = self.SEARCH_URL.format(country=self.country, name=name)
         self.driver.get(url)
+        logger.info(f"Parsing response for {name} (country: {self.country})...")
         media_locator = By.CLASS_NAME, "title-list-row__row"
         WebDriverWait(self.driver, 10).until(presence_of_element_located(media_locator))
         return [self._parse_media(entry) for entry in self.driver.find_elements(*media_locator)]
