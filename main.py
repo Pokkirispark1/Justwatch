@@ -76,28 +76,32 @@ def search_results_handler() -> ConversationHandler:
 
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    name = update.message.text.strip()
-    logger.info(f"Looking for '{name}'")
-    response = get(API_URL.replace("{search_field}", name)).json()
-    logger.info(f"Received response for '{name}'")
-    context.user_data["search_results"] = response
-    await update.message.reply_text("Select entry:", reply_markup=response_keyboard(response))
+    search_query = update.message.text.strip()
+    context.user_data["search_query"] = search_query
+    logger.info(f"Looking for '{search_query}'")
+    search_results = get(API_URL.replace("{search_field}", search_query)).json()
+    logger.info(f"Received response for '{search_query}'")
+    context.user_data["search_results"] = search_results
+    response, keyboard = response_and_keyboard(search_query, search_results)
+    await update.message.reply_text(response, reply_markup=keyboard)
 
 
 async def search_results_again(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
     query = update.callback_query
     await query.answer()
+    search_query = context.user_data["search_query"]
     search_results = context.user_data["search_results"]
-    await query.edit_message_text("Select entry:", reply_markup=response_keyboard(search_results))
+    response, keyboard = response_and_keyboard(search_query, search_results)
+    await query.edit_message_text(response, reply_markup=keyboard)
     return State.SHOW_DETAILS
 
 
-def response_keyboard(data: list[Any]) -> InlineKeyboardMarkup:
+def response_and_keyboard(query: str, data: list[Any]) -> tuple[str, InlineKeyboardMarkup]:
     buttons = [
         [InlineKeyboardButton(f"{title} ({year})", callback_data=index)]
         for index, (title, year, offers) in enumerate(data)
     ]
-    return InlineKeyboardMarkup(buttons)
+    return f"Search results for <b>{query}</b>:", InlineKeyboardMarkup(buttons)
 
 
 async def show_details_initial(update: Update, context: ContextTypes.DEFAULT_TYPE) -> State:
