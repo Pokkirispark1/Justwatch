@@ -28,7 +28,7 @@ class MediaEntry(NamedTuple):
 
 
 class JustWatch:
-    LOGO_URL = "https://www.justwatch.com/appassets/img/logo/JustWatch-logo-large.webp"
+    LOGO_URL = "https://www.justwatch.com/appassets/img/JustWatch_logo_with_claim.png"
     COOKIES_POPUP_ID = "usercentrics-root"
     COOKIES_ACCEPT_CSS = "button[data-testid=uc-accept-all-button]"
     JUSTWATCH_URL = "https://www.justwatch.com"
