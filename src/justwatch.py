@@ -63,7 +63,7 @@ class JustWatch:
         logger.info(f"Parsing response for {name} (country: {self.country})...")
         media_locator = By.CLASS_NAME, "title-list-row__row"
         WebDriverWait(self.driver, 10).until(presence_of_element_located(media_locator))
-        return [self._parse_media(entry) for entry in self.driver.find_elements(*media_locator)]
+        return [self._parse_media(entry) for entry in self.driver.find_elements(*media_locator)[:4]]
 
     def _accept_cookies(self):
         try:
