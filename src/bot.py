@@ -3,7 +3,13 @@ from os import getenv
 
 from dotenv import load_dotenv
 from loguru import logger
-from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Update,
+)
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler
 from telegram.ext import ContextTypes as CT
 from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePersistence
@@ -75,7 +81,7 @@ class JustWatchBot:
         logger.info(f"Received response for '{search_query}'")
         context.user_data["search_results"] = results
         response, keyboard = self.search_response(search_query), self.search_keyboard(results)
-        await update.message.reply_text(response, reply_markup=keyboard)
+        await update.message.reply_photo(JustWatch.LOGO_URL, response, reply_markup=keyboard)
 
     async def search_results_again(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
@@ -83,7 +89,8 @@ class JustWatchBot:
         search_query = context.user_data["search_query"]
         results = context.user_data["search_results"]
         response, keyboard = self.search_response(search_query), self.search_keyboard(results)
-        await query.edit_message_text(response, reply_markup=keyboard)
+        logo = InputMediaPhoto(JustWatch.LOGO_URL, response)
+        await query.edit_message_media(logo, reply_markup=keyboard)
         return State.SHOW_DETAILS
 
     def search_response(self, query: str) -> str:
@@ -92,7 +99,7 @@ class JustWatchBot:
     def search_keyboard(self, data: list[MediaEntry]) -> InlineKeyboardMarkup:
         buttons = [
             [InlineKeyboardButton(f"{title} ({year})", callback_data=index)]
-            for index, (title, year, _) in enumerate(data)
+            for index, (title, year, _, _) in enumerate(data)
         ]
         return InlineKeyboardMarkup(buttons)
 
@@ -112,21 +119,22 @@ class JustWatchBot:
         return await self.show_details(query, selected_data)
 
     async def show_details(self, query: CallbackQuery, selected_data: MediaEntry) -> State:
-        title, year, offers = selected_data
+        title, year, poster_url, offers = selected_data
         buttons = [
             [InlineKeyboardButton(offer_type, callback_data=offer_type)]
             for offer_type in offers.keys()
         ]
         buttons += [[InlineKeyboardButton("« Back", callback_data="search_results")]]
         keyboard = InlineKeyboardMarkup(buttons)
-        await query.edit_message_text(f"<b>{title}</b> ({year})", reply_markup=keyboard)
+        poster_media = InputMediaPhoto(poster_url, f"<b>{title}</b> ({year})")
+        await query.edit_message_media(poster_media, reply_markup=keyboard)
         return State.SELECT_OFFER_TYPE
 
     async def show_offers(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
         offer_type = query.data
-        title, year, offers = context.user_data["selected_data"]
+        title, year, poster_url, offers = context.user_data["selected_data"]
         buttons = [
             [InlineKeyboardButton(f"{name} ({value})", url=url)]
             for name, url, value in offers[offer_type]
@@ -136,5 +144,6 @@ class JustWatchBot:
             [InlineKeyboardButton("« Back to search", callback_data="search_results")],
         ]
         keyboard = InlineKeyboardMarkup(buttons)
-        await query.edit_message_text(f"<b>{title}</b> ({year})", reply_markup=keyboard)
+        poster_media = InputMediaPhoto(poster_url, f"<b>{title}</b> ({year})")
+        await query.edit_message_media(poster_media, reply_markup=keyboard)
         return State.SHOW_OFFER

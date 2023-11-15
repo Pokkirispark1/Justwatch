@@ -23,10 +23,12 @@ class WatchOffer(NamedTuple):
 class MediaEntry(NamedTuple):
     title: str
     year: str
+    poster_url: str
     watch_options: dict[str, WatchOffer]
 
 
 class JustWatch:
+    LOGO_URL = "https://www.justwatch.com/appassets/img/logo/JustWatch-logo-large.webp"
     COOKIES_POPUP_ID = "usercentrics-root"
     COOKIES_ACCEPT_CSS = "button[data-testid=uc-accept-all-button]"
     JUSTWATCH_URL = "https://www.justwatch.com"
@@ -79,9 +81,11 @@ class JustWatch:
     def _parse_media(self, media: WebElement) -> MediaEntry:
         title = media.find_element(By.CLASS_NAME, "header-title").text
         year = sub(r"[)(]", "", media.find_element(By.CLASS_NAME, "header-year").text)
+        poster = media.find_element(By.CLASS_NAME, "title-poster")
+        poster_url = poster.find_element(By.TAG_NAME, "img").get_attribute("src")
         buybox = media.find_element(By.CLASS_NAME, "buybox__content")
         options = self._parse_options(buybox)
-        return MediaEntry(title, year, options)
+        return MediaEntry(title, year, poster_url, options)
 
     def _parse_options(self, buybox: WebElement) -> dict[str, WatchOffer]:
         # Since buybox is loaded, then these elements should be as well.
