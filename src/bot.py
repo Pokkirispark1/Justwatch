@@ -1,27 +1,41 @@
 from enum import Enum, auto
 from os import getenv
+from typing import NamedTuple
 
 from dotenv import load_dotenv
 from loguru import logger
 from telegram import (
-    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InputMediaPhoto,
     Update,
 )
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler
-from telegram.ext import ContextTypes as CT
-from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePersistence
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes as CT, \
+    ConversationHandler, Defaults, MessageHandler, PicklePersistence
 from telegram.ext.filters import COMMAND, TEXT, User
 
-from justwatch import JustWatch, MediaEntry
+from justwatch import JustWatch, MediaEntry, WatchOffer
 
 
 class State(Enum):
     SHOW_DETAILS = auto()
     SELECT_OFFER_TYPE = auto()
     SHOW_OFFER = auto()
+
+
+class SearchData(NamedTuple):
+    query: str
+    results: list[MediaEntry]
+
+
+class DetailsData(NamedTuple):
+    full_data: SearchData
+    entry: MediaEntry
+
+
+class OffersData(NamedTuple):
+    details_data: DetailsData
+    offers: list[WatchOffer]
 
 
 class JustWatchBot:
@@ -58,12 +72,12 @@ class JustWatchBot:
             entry_points=[CallbackQueryHandler(self.show_details_initial)],
             states={
                 State.SELECT_OFFER_TYPE: [
-                    CallbackQueryHandler(self.search_results_again, "search_results"),
+                    CallbackQueryHandler(self.search_results_again, SearchData),
                     CallbackQueryHandler(self.show_offers),
                 ],
                 State.SHOW_OFFER: [
-                    CallbackQueryHandler(self.show_details_again, "details"),
-                    CallbackQueryHandler(self.search_results_again, "search_results"),
+                    CallbackQueryHandler(self.show_details_again, DetailsData),
+                    CallbackQueryHandler(self.search_results_again, SearchData),
                 ],
                 State.SHOW_DETAILS: [CallbackQueryHandler(self.show_details_initial)],
             },
@@ -73,77 +87,69 @@ class JustWatchBot:
             name="search_results_handler",
         )
 
-    async def search(self, update: Update, context: CT.DEFAULT_TYPE) -> None:
+    async def search(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
         search_query = update.message.text.strip()
-        context.user_data["search_query"] = search_query
         logger.info(f"Looking for '{search_query}'")
         results = self.just_watch.search(search_query)
         logger.info(f"Received response for '{search_query}'")
-        context.user_data["search_results"] = results
-        response, keyboard = self.search_response(search_query), self.search_keyboard(results)
+        search_data = SearchData(search_query, results)
+        response, keyboard = self.search_response(search_data)
         await update.message.reply_photo(JustWatch.LOGO_URL, response, reply_markup=keyboard)
 
-    async def search_results_again(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
+    async def search_results_again(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
-        search_query = context.user_data["search_query"]
-        results = context.user_data["search_results"]
-        response, keyboard = self.search_response(search_query), self.search_keyboard(results)
+        response, keyboard = self.search_response(query.data)
         logo = InputMediaPhoto(JustWatch.LOGO_URL, response)
         await query.edit_message_media(logo, reply_markup=keyboard)
         return State.SHOW_DETAILS
 
-    def search_response(self, query: str) -> str:
-        return f"Search results for <b>{query}</b>:"
+    def search_response(self, search_data: SearchData) -> tuple[str, InlineKeyboardMarkup]:
+        message = f"Search results for <b>{search_data.query}</b>:"
+        buttons = [[self.search_button(search_data, entry)] for entry in search_data.results]
+        return message, InlineKeyboardMarkup(buttons)
 
-    def search_keyboard(self, data: list[MediaEntry]) -> InlineKeyboardMarkup:
-        buttons = [
-            [InlineKeyboardButton(f"{title} ({year})", callback_data=index)]
-            for index, (title, year, _, _) in enumerate(data)
-        ]
-        return InlineKeyboardMarkup(buttons)
+    def search_button(self, search_data: SearchData, entry: MediaEntry) -> InlineKeyboardButton:
+        text = f"{entry.title} ({entry.year})"
+        callback_data = DetailsData(search_data, entry)
+        return InlineKeyboardButton(text, callback_data=callback_data)
 
-    async def show_details_initial(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
+    async def show_details_initial(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
-        index = data if isinstance(data := query.data, int) else 0
-        context.user_data["index"] = index
-        selected_data = context.user_data["search_results"][index]
-        context.user_data["selected_data"] = selected_data
-        return await self.show_details(query, selected_data)
-
-    async def show_details_again(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
-        query = update.callback_query
-        await query.answer()
-        selected_data = context.user_data["selected_data"]
-        return await self.show_details(query, selected_data)
-
-    async def show_details(self, query: CallbackQuery, selected_data: MediaEntry) -> State:
-        title, year, poster_url, offers = selected_data
-        buttons = [
-            [InlineKeyboardButton(offer_type, callback_data=offer_type)]
-            for offer_type in offers.keys()
-        ]
-        buttons += [[InlineKeyboardButton("« Back", callback_data="search_results")]]
-        keyboard = InlineKeyboardMarkup(buttons)
-        poster_media = InputMediaPhoto(poster_url, f"<b>{title}</b> ({year})")
+        details_data = query.data
+        title, year, poster, _ = details_data.entry
+        keyboard = self.details_keyboard(details_data)
+        poster_media = InputMediaPhoto(poster, f"<b>{title}</b> ({year})")
         await query.edit_message_media(poster_media, reply_markup=keyboard)
         return State.SELECT_OFFER_TYPE
 
-    async def show_offers(self, update: Update, context: CT.DEFAULT_TYPE) -> State:
+    async def show_details_again(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
-        offer_type = query.data
-        title, year, poster_url, offers = context.user_data["selected_data"]
+        keyboard = self.details_keyboard(query.data)
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+        return State.SELECT_OFFER_TYPE
+
+    def details_keyboard(self, details_data: DetailsData) -> InlineKeyboardMarkup:
+        title, year, poster, offers = details_data.entry
         buttons = [
-            [InlineKeyboardButton(f"{name} ({value})", url=url)]
-            for name, url, value in offers[offer_type]
+            [InlineKeyboardButton(offer_type, callback_data=OffersData(details_data, offers))]
+            for offer_type, offers in offers.items()
+        ]
+        buttons += [[InlineKeyboardButton("« Back", callback_data=details_data.full_data)]]
+        return InlineKeyboardMarkup(buttons)
+
+    async def show_offers(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
+        query = update.callback_query
+        await query.answer()
+        details_data, offers = query.data
+        buttons = [
+            [InlineKeyboardButton(f"{name} ({value})", url=url)] for name, url, value in offers
         ]
         buttons += [
-            [InlineKeyboardButton("« Back", callback_data="details")],
-            [InlineKeyboardButton("« Back to search", callback_data="search_results")],
+            [InlineKeyboardButton("« Back", callback_data=details_data)],
+            [InlineKeyboardButton("« Back to search", callback_data=details_data.full_data)],
         ]
-        keyboard = InlineKeyboardMarkup(buttons)
-        poster_media = InputMediaPhoto(poster_url, f"<b>{title}</b> ({year})")
-        await query.edit_message_media(poster_media, reply_markup=keyboard)
+        await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
         return State.SHOW_OFFER

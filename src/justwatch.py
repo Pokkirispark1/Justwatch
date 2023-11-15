@@ -24,7 +24,7 @@ class MediaEntry(NamedTuple):
     title: str
     year: str
     poster_url: str
-    watch_options: dict[str, WatchOffer]
+    offers: dict[str, list[WatchOffer]]
 
 
 class JustWatch:
