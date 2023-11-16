@@ -1,6 +1,6 @@
 # JustWatch Telegram bot
 
-A simple [JustWatch](https://www.justwatch.com/) Telegram bot.
+An unofficial and simple [JustWatch](https://www.justwatch.com/) Telegram bot.
 It's built using `Python 3.11`, [`python-telegram-bot`](https://python-telegram-bot.org/) and [Selenium](https://www.selenium.dev/).
 
 
@@ -93,3 +93,11 @@ It responds always with 5 best matching entries as by default JustWatch loads on
 Bot is also quite slow, especially when running on less powerful machine, like Raspberry PI.
 Selenium adds quite a performance overhear.
 That's the reason for limited details in responses.
+
+
+
+## Disclaimer
+
+This bot is in no way affiliated, associated, authorized, endorsed by, or in any way officially connected with JustWatch.
+This is an independent and unofficial project.
+Use at your own risk.
