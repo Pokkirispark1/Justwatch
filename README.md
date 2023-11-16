@@ -1,7 +1,7 @@
 # JustWatch Telegram bot
 
 An unofficial and simple [JustWatch](https://www.justwatch.com/) Telegram bot.
-It's built using `Python 3.11`, [`python-telegram-bot`](https://python-telegram-bot.org/) and [Selenium](https://www.selenium.dev/).
+It's built using `Python 3.11`, [`python-telegram-bot`](https://python-telegram-bot.org/) and [`Selenium`](https://www.selenium.dev/).
 
 
 
