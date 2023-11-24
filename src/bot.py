@@ -13,6 +13,7 @@ from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePe
 from telegram.ext.filters import COMMAND, TEXT, User
 
 JUSTWATCH_LOGO_URL = "https://www.justwatch.com/appassets/img/JustWatch_logo_with_claim.png"
+IMDB_DETAILS_ULR = "https://www.imdb.com/title/{}/"
 
 
 class State(Enum):
@@ -142,6 +143,8 @@ class JustWatchBot:
             ]
             for offer_type, offers in groupby(media.offers, lambda o: o.monetization_type)
         ]
+        if media.imdb_id:
+            buttons += [[InlineKeyboardButton("IMDb", url=IMDB_DETAILS_ULR.format(media.imdb_id))]]
         buttons += [[InlineKeyboardButton("« Back", callback_data=details_data.full_data)]]
         return InlineKeyboardMarkup(buttons)
 
