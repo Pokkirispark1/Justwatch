@@ -3,13 +3,14 @@ from os import getenv
 from dotenv import load_dotenv
 
 from bot import JustWatchBot
-from justwatch import JustWatch
 
 
 def main() -> None:
     load_dotenv()
-    just_watch = JustWatch(getenv("COUNTRY", "US"))
-    bot = JustWatchBot(just_watch)
+    country = getenv("COUNTRY", "US")
+    language = getenv("LANGUAGE", "en")
+    count = int(getenv("COUNT", 4))
+    bot = JustWatchBot(country, language, count)
     bot.start()
 
 

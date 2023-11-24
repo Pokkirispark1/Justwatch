@@ -1,20 +1,18 @@
 from enum import Enum, auto
+from itertools import groupby
 from os import getenv
 from typing import NamedTuple
 
 from dotenv import load_dotenv
 from loguru import logger
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    InputMediaPhoto,
-    Update,
-)
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes as CT, \
-    ConversationHandler, Defaults, MessageHandler, PicklePersistence
+from simplejustwatchpythonapi import MediaEntry, Offer, search
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler
+from telegram.ext import ContextTypes as CT
+from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePersistence
 from telegram.ext.filters import COMMAND, TEXT, User
 
-from justwatch import JustWatch, MediaEntry, WatchOffer
+JUSTWATCH_LOGO_URL = "https://www.justwatch.com/appassets/img/JustWatch_logo_with_claim.png"
 
 
 class State(Enum):
@@ -35,14 +33,16 @@ class DetailsData(NamedTuple):
 
 class OffersData(NamedTuple):
     details_data: DetailsData
-    offers: list[WatchOffer]
+    offers: list[Offer]
 
 
 class JustWatchBot:
-    def __init__(self, just_watch: JustWatch) -> None:
+    def __init__(self, country: str, language: str, count: int) -> None:
         logger.info("Creating bot...")
         load_dotenv()
-        self.just_watch = just_watch
+        self.country = country
+        self.language = language
+        self.count = count
         self.application = (
             ApplicationBuilder()
             .token(getenv("TOKEN"))
@@ -90,17 +90,17 @@ class JustWatchBot:
     async def search(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
         search_query = update.message.text.strip()
         logger.info(f"Looking for '{search_query}'")
-        results = self.just_watch.search(search_query)
+        results = search(search_query, self.country, self.language, self.count, True)
         logger.info(f"Received response for '{search_query}'")
         search_data = SearchData(search_query, results)
         response, keyboard = self.search_response(search_data)
-        await update.message.reply_photo(JustWatch.LOGO_URL, response, reply_markup=keyboard)
+        await update.message.reply_photo(JUSTWATCH_LOGO_URL, response, reply_markup=keyboard)
 
     async def search_results_again(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
         response, keyboard = self.search_response(query.data)
-        logo = InputMediaPhoto(JustWatch.LOGO_URL, response)
+        logo = InputMediaPhoto(JUSTWATCH_LOGO_URL, response)
         await query.edit_message_media(logo, reply_markup=keyboard)
         return State.SHOW_DETAILS
 
@@ -110,7 +110,7 @@ class JustWatchBot:
         return message, InlineKeyboardMarkup(buttons)
 
     def search_button(self, search_data: SearchData, entry: MediaEntry) -> InlineKeyboardButton:
-        text = f"{entry.title} ({entry.year})"
+        text = f"{entry.title} ({entry.release_year})"
         callback_data = DetailsData(search_data, entry)
         return InlineKeyboardButton(text, callback_data=callback_data)
 
@@ -118,9 +118,9 @@ class JustWatchBot:
         query = update.callback_query
         await query.answer()
         details_data = query.data
-        title, year, poster, _ = details_data.entry
+        media = details_data.entry
         keyboard = self.details_keyboard(details_data)
-        poster_media = InputMediaPhoto(poster, f"<b>{title}</b> ({year})")
+        poster_media = InputMediaPhoto(media.poster, f"<b>{media.title}</b> ({media.release_year})")
         await query.edit_message_media(poster_media, reply_markup=keyboard)
         return State.SELECT_OFFER_TYPE
 
@@ -132,24 +132,39 @@ class JustWatchBot:
         return State.SELECT_OFFER_TYPE
 
     def details_keyboard(self, details_data: DetailsData) -> InlineKeyboardMarkup:
-        title, year, poster, offers = details_data.entry
+        media = details_data.entry
         buttons = [
-            [InlineKeyboardButton(offer_type, callback_data=OffersData(details_data, offers))]
-            for offer_type, offers in offers.items()
+            [
+                InlineKeyboardButton(
+                    self.format_offer_type(offer_type),
+                    callback_data=OffersData(details_data, list(offers)),
+                )
+            ]
+            for offer_type, offers in groupby(media.offers, lambda o: o.monetization_type)
         ]
         buttons += [[InlineKeyboardButton("« Back", callback_data=details_data.full_data)]]
         return InlineKeyboardMarkup(buttons)
+
+    def format_offer_type(self, offer_type: str) -> str:
+        if offer_type == "FLATRATE":
+            offer_type = "Stream"
+        return offer_type.capitalize()
 
     async def show_offers(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
         await query.answer()
         details_data, offers = query.data
-        buttons = [
-            [InlineKeyboardButton(f"{name} ({value})", url=url)] for name, url, value in offers
-        ]
+        buttons = [[self.prepare_offer_button(offer)] for offer in offers]
         buttons += [
             [InlineKeyboardButton("« Back", callback_data=details_data)],
             [InlineKeyboardButton("« Back to search", callback_data=details_data.full_data)],
         ]
         await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
         return State.SHOW_OFFER
+
+    def prepare_offer_button(self, offer: Offer) -> InlineKeyboardButton:
+        quality = offer.presentation_type
+        button_text = offer.name
+        button_text += f" {quality.replace('_', '')}" if quality else ""
+        button_text += f" ({price})" if (price := offer.price_string) else ""
+        return InlineKeyboardButton(button_text, url=offer.url)
