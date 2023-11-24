@@ -5,6 +5,8 @@ services:
     build: .
     container_name: justwatch-telegram-bot
     restart: unless-stopped
+    environment:
+      - PERSISTENCE_FILE=/config/persistence
     env_file: .env
     volumes:
       - ./config:/config
