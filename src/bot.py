@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 from dotenv import load_dotenv
 from loguru import logger
-from simplejustwatchpythonapi import MediaEntry, Offer, search
+from simplejustwatchapi import MediaEntry, Offer, search
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler
 from telegram.ext import ContextTypes as CT
