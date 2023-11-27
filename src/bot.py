@@ -13,6 +13,7 @@ from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePe
 from telegram.ext.filters import COMMAND, TEXT, User
 
 JUSTWATCH_LOGO_URL = "https://www.justwatch.com/appassets/img/JustWatch_logo_with_claim.png"
+JUSTWATCH_SEARCH_WEBSITE_URL = "https://www.justwatch.com/{}/search?q={}"
 IMDB_DETAILS_ULR = "https://www.imdb.com/title/{}/"
 
 
@@ -108,6 +109,9 @@ class JustWatchBot:
     def search_response(self, search_data: SearchData) -> tuple[str, InlineKeyboardMarkup]:
         message = f"Search results for <b>{search_data.query}</b>:"
         buttons = [[self.search_button(search_data, entry)] for entry in search_data.results]
+        website_url = JUSTWATCH_SEARCH_WEBSITE_URL.format(self.country, search_data.query)
+        website_button = InlineKeyboardButton("justwatch.com", url=website_url)
+        buttons += [[website_button]]
         return message, InlineKeyboardMarkup(buttons)
 
     def search_button(self, search_data: SearchData, entry: MediaEntry) -> InlineKeyboardButton:
