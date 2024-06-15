@@ -171,7 +171,7 @@ class JustWatchBot:
 
     def prepare_offer_button(self, offer: Offer) -> InlineKeyboardButton:
         quality = offer.presentation_type
-        button_text = offer.name
+        button_text = offer.package.name
         button_text += f" {quality.replace('_', '')}" if quality else ""
         button_text += f" ({price})" if (price := offer.price_string) else ""
         return InlineKeyboardButton(button_text, url=offer.url)
