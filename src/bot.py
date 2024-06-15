@@ -138,6 +138,7 @@ class JustWatchBot:
 
     def details_keyboard(self, details_data: DetailsData) -> InlineKeyboardMarkup:
         media = details_data.entry
+        sorted_offers = sorted(media.offers, key=lambda o: o.monetization_type)
         buttons = [
             [
                 InlineKeyboardButton(
@@ -145,7 +146,7 @@ class JustWatchBot:
                     callback_data=OffersData(details_data, list(offers)),
                 )
             ]
-            for offer_type, offers in groupby(media.offers, lambda o: o.monetization_type)
+            for offer_type, offers in groupby(sorted_offers, lambda o: o.monetization_type)
         ]
         if media.imdb_id:
             buttons += [[InlineKeyboardButton("IMDb", url=IMDB_DETAILS_ULR.format(media.imdb_id))]]
