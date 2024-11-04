@@ -115,7 +115,7 @@ class JustWatchBot:
         return message, InlineKeyboardMarkup(buttons)
 
     def search_button(self, search_data: SearchData, entry: MediaEntry) -> InlineKeyboardButton:
-        text = f"{entry.title} ({entry.release_year})"
+        text = f"{entry.title} ({entry.release_year}) ({self.runtime_str(entry.runtime_minutes)})"
         callback_data = DetailsData(search_data, entry)
         return InlineKeyboardButton(text, callback_data=callback_data)
 
@@ -125,7 +125,10 @@ class JustWatchBot:
         details_data = query.data
         media = details_data.entry
         keyboard = self.details_keyboard(details_data)
-        poster_media = InputMediaPhoto(media.poster, f"<b>{media.title}</b> ({media.release_year})")
+        title = media.title
+        year = media.release_year
+        runtime = self.runtime_str(media.runtime_minutes)
+        poster_media = InputMediaPhoto(media.poster, f"<b>{title}</b> ({year}) ({runtime})")
         await query.edit_message_media(poster_media, reply_markup=keyboard)
         return State.SELECT_OFFER_TYPE
 
@@ -176,3 +179,6 @@ class JustWatchBot:
         button_text += f" {quality.replace('_', '')}" if quality else ""
         button_text += f" ({price})" if (price := offer.price_string) else ""
         return InlineKeyboardButton(button_text, url=offer.url)
+
+    def runtime_str(self, runtime_minutes: int) -> str:
+        return ":".join((str(runtime_minutes // 60), str(runtime_minutes % 60).zfill(2)))
