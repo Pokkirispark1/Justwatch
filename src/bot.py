@@ -57,7 +57,7 @@ class JustWatchBot:
         self.application.add_handler(
             CommandHandler(["start", "help"], self.help_command, user_filter)
         )
-        self.application.add_handler(CommandHandler("get", self.get_command, user_filter))
+        self.application.add_handler(CommandHandler("find", self.get_command, user_filter))
         self.application.add_handler(self.search_results_handler())
         logger.info("Bot created!")
 
@@ -72,7 +72,7 @@ class JustWatchBot:
     async def get_command(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
         query_text = update.message.text.strip()
         if len(query_text.split(" ", 1)) < 2:
-            await update.message.reply_text("Please provide a search query. Example:\n/get Inception")
+            await update.message.reply_text("Please provide a search query. Example:\n/find Inception")
             return
         search_query = query_text.split(" ", 1)[1]
         logger.info(f"Looking for '{search_query}'")
