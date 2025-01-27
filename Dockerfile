@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Ensure the destination is explicitly a directory by adding a trailing slash
-COPY src/*.py ./
+# Copy the entire 'src' folder into the container
+COPY src/ ./src/
 
-CMD ["python", "main.py"]
+CMD ["python", "src/main.py"]
