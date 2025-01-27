@@ -9,12 +9,12 @@ from simplejustwatchapi import MediaEntry, Offer, search
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler
 from telegram.ext import ContextTypes as CT
-from telegram.ext import ConversationHandler, Defaults, MessageHandler, PicklePersistence
-from telegram.ext.filters import COMMAND, TEXT, User
+from telegram.ext import ConversationHandler, Defaults, PicklePersistence
+from telegram.ext.filters import COMMAND, User
 
 JUSTWATCH_LOGO_URL = "https://www.justwatch.com/appassets/img/JustWatch_logo_with_claim.png"
 JUSTWATCH_SEARCH_WEBSITE_URL = "https://www.justwatch.com/{}/search?q={}"
-IMDB_DETAILS_ULR = "https://www.imdb.com/title/{}/"
+IMDB_DETAILS_URL = "https://www.imdb.com/title/{}/"
 
 
 class State(Enum):
@@ -57,7 +57,7 @@ class JustWatchBot:
         self.application.add_handler(
             CommandHandler(["start", "help"], self.help_command, user_filter)
         )
-        self.application.add_handler(MessageHandler(user_filter & TEXT & ~COMMAND, self.search))
+        self.application.add_handler(CommandHandler("get", self.get_command, user_filter))
         self.application.add_handler(self.search_results_handler())
         logger.info("Bot created!")
 
@@ -66,8 +66,21 @@ class JustWatchBot:
         self.application.run_polling()
 
     async def help_command(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
-        response = "Send a message to the bot with a search query, that's it!"
+        response = "Use the /get command followed by your search query. For example:\n\n/get Inception"
         await update.message.reply_text(response)
+
+    async def get_command(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
+        query_text = update.message.text.strip()
+        if len(query_text.split(" ", 1)) < 2:
+            await update.message.reply_text("Please provide a search query. Example:\n/get Inception")
+            return
+        search_query = query_text.split(" ", 1)[1]
+        logger.info(f"Looking for '{search_query}'")
+        results = search(search_query, self.country, self.language, self.count, True)
+        logger.info(f"Received response for '{search_query}'")
+        search_data = SearchData(search_query, results)
+        response, keyboard = self.search_response(search_data)
+        await update.message.reply_photo(JUSTWATCH_LOGO_URL, response, reply_markup=keyboard)
 
     def search_results_handler(self) -> ConversationHandler:
         return ConversationHandler(
@@ -88,15 +101,6 @@ class JustWatchBot:
             persistent=True,
             name="search_results_handler",
         )
-
-    async def search(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
-        search_query = update.message.text.strip()
-        logger.info(f"Looking for '{search_query}'")
-        results = search(search_query, self.country, self.language, self.count, True)
-        logger.info(f"Received response for '{search_query}'")
-        search_data = SearchData(search_query, results)
-        response, keyboard = self.search_response(search_data)
-        await update.message.reply_photo(JUSTWATCH_LOGO_URL, response, reply_markup=keyboard)
 
     async def search_results_again(self, update: Update, _: CT.DEFAULT_TYPE) -> State:
         query = update.callback_query
@@ -152,7 +156,7 @@ class JustWatchBot:
             for offer_type, offers in groupby(sorted_offers, lambda o: o.monetization_type)
         ]
         if media.imdb_id:
-            buttons += [[InlineKeyboardButton("IMDb", url=IMDB_DETAILS_ULR.format(media.imdb_id))]]
+            buttons += [[InlineKeyboardButton("IMDb", url=IMDB_DETAILS_URL.format(media.imdb_id))]]
         buttons += [[InlineKeyboardButton("« Back", callback_data=details_data.full_data)]]
         return InlineKeyboardMarkup(buttons)
 
