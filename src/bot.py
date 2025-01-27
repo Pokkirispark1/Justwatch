@@ -66,7 +66,7 @@ class JustWatchBot:
         self.application.run_polling()
 
     async def help_command(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
-        response = "Use the /get command followed by your search query. For example:\n\n/get Inception"
+        response = "**Hi..👋**\n\n**Welcome to the Movie Update Bot..! \n\nI will update you about new movies streaming on OTT platforms.**\n\n\n**__🔥 by :- @SPARKBR0__**"
         await update.message.reply_text(response)
 
     async def get_command(self, update: Update, _: CT.DEFAULT_TYPE) -> None:
